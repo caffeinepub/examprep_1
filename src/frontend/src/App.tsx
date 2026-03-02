@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { BookOpen, Calendar, FileText, GraduationCap } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useState } from "react";
 import ExamsTab from "./pages/ExamsTab";
 import NotesTab from "./pages/NotesTab";
@@ -75,20 +75,18 @@ export default function App() {
 
       {/* Main content */}
       <main className="flex-1 overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
-            className="h-full"
-          >
-            {activeTab === "exams" && <ExamsTab />}
-            {activeTab === "syllabus" && <SyllabusTab />}
-            {activeTab === "notes" && <NotesTab />}
-          </motion.div>
-        </AnimatePresence>
+        {/* Keep all tabs mounted to prevent state loss on tab switch */}
+        <div className={`h-full ${activeTab === "exams" ? "block" : "hidden"}`}>
+          <ExamsTab />
+        </div>
+        <div
+          className={`h-full ${activeTab === "syllabus" ? "block" : "hidden"}`}
+        >
+          <SyllabusTab />
+        </div>
+        <div className={`h-full ${activeTab === "notes" ? "block" : "hidden"}`}>
+          <NotesTab />
+        </div>
       </main>
 
       {/* Footer */}

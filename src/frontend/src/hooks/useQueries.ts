@@ -9,9 +9,21 @@ import type { Exam, Folder, Note } from "../types";
 import { useActor } from "./useActor";
 
 // ── Serialization helpers (must be defined before any hook that uses them) ──
-function bigIntReviver(_key: string, value: unknown): unknown {
+
+// Keys that should always be BigInt — used for migration of old plain-string data
+const BIGINT_KEYS = new Set(["dateTime", "progress", "order", "createdAt"]);
+
+function bigIntMigratingReviver(key: string, value: unknown): unknown {
   if (typeof value === "string" && /^\d+n$/.test(value)) {
     return BigInt(value.slice(0, -1));
+  }
+  // Migrate old format: plain numeric strings for known BigInt fields
+  if (
+    BIGINT_KEYS.has(key) &&
+    typeof value === "string" &&
+    /^\d+$/.test(value)
+  ) {
+    return BigInt(value);
   }
   return value;
 }
@@ -52,7 +64,7 @@ export function useExams() {
     queryFn: async () => {
       // Always read from localStorage first — survives canister redeployments
       const stored = localStorage.getItem("exams_local");
-      if (stored) return JSON.parse(stored, bigIntReviver) as Exam[];
+      if (stored) return JSON.parse(stored, bigIntMigratingReviver) as Exam[];
       if (!actor) return [];
       await ensureSeed(actor);
       const exams = (await actor.getUpcomingExams()) as Exam[];
@@ -245,7 +257,7 @@ export function useNotes() {
     queryFn: async () => {
       // Always read from localStorage first — source of truth, no backend refetch needed
       const stored = localStorage.getItem("notes_local");
-      if (stored) return JSON.parse(stored, bigIntReviver) as Note[];
+      if (stored) return JSON.parse(stored, bigIntMigratingReviver) as Note[];
       if (!actor) return getSeedNotes();
       await ensureSeed(actor);
       return getSeedNotes();

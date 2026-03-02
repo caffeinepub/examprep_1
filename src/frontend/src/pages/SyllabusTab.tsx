@@ -47,9 +47,19 @@ import type { Chapter, Subject, Topic } from "../types";
 // ── localStorage helpers ────────────────────────────────────
 const LS_KEY = "subjects_local";
 
-function bigIntReviver(_key: string, value: unknown): unknown {
+const BIGINT_KEYS_SYLLABUS = new Set(["order"]);
+
+function bigIntReviver(key: string, value: unknown): unknown {
   if (typeof value === "string" && /^\d+n$/.test(value)) {
     return BigInt(value.slice(0, -1));
+  }
+  // Migrate old format: plain numeric strings for known BigInt fields
+  if (
+    BIGINT_KEYS_SYLLABUS.has(key) &&
+    typeof value === "string" &&
+    /^\d+$/.test(value)
+  ) {
+    return BigInt(value);
   }
   return value;
 }
@@ -62,9 +72,18 @@ function bigIntReplacer(_key: string, value: unknown): unknown {
 function loadSubjects(): Subject[] {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw, bigIntReviver) as Subject[];
+    if (raw) {
+      const parsed = JSON.parse(raw, bigIntReviver) as Subject[];
+      // Validate structure
+      if (Array.isArray(parsed)) return parsed;
+    }
   } catch {
-    // corrupted data — fall through to seed
+    // corrupted data — clear and fall through to seed
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch {
+      /* ignore */
+    }
   }
   const seed = getSeedSubjects();
   saveSubjectsToStorage(seed);

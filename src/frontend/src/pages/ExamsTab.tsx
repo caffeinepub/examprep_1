@@ -27,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import {
   AlarmClock,
@@ -50,14 +49,57 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import {
-  useCreateExam,
-  useDeleteExam,
-  useExams,
-  useUpdateExam,
-} from "../hooks/useQueries";
+import { getSeedExams } from "../seedData";
 import type { Exam } from "../types";
 
+// ── localStorage helpers ──────────────────────────────────────
+const LS_KEY = "exams_local";
+
+const BIGINT_KEYS = new Set(["dateTime", "progress"]);
+
+function bigIntReviver(key: string, value: unknown): unknown {
+  if (typeof value === "string" && /^\d+n$/.test(value)) {
+    return BigInt(value.slice(0, -1));
+  }
+  if (
+    BIGINT_KEYS.has(key) &&
+    typeof value === "string" &&
+    /^\d+$/.test(value)
+  ) {
+    return BigInt(value);
+  }
+  return value;
+}
+
+function bigIntReplacer(_key: string, value: unknown): unknown {
+  if (typeof value === "bigint") return `${value.toString()}n`;
+  return value;
+}
+
+function loadExams(): Exam[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw, bigIntReviver) as Exam[];
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+  const seed = getSeedExams();
+  saveExamsToStorage(seed);
+  return seed;
+}
+
+function saveExamsToStorage(exams: Exam[]) {
+  localStorage.setItem(LS_KEY, JSON.stringify(exams, bigIntReplacer));
+}
+
+// ── display helpers ───────────────────────────────────────────
 const EXAM_TYPES = ["Quiz", "Midterm", "Final", "Assignment", "Lab", "Other"];
 
 const TYPE_COLORS: Record<string, string> = {
@@ -132,10 +174,13 @@ const emptyForm: ExamFormData = {
 };
 
 export default function ExamsTab() {
-  const { data: exams = [], isLoading } = useExams();
-  const createExam = useCreateExam();
-  const updateExam = useUpdateExam();
-  const deleteExam = useDeleteExam();
+  // Single source of truth: plain state, persisted synchronously to localStorage
+  const [exams, setExams] = useState<Exam[]>(() => loadExams());
+
+  function updateExams(next: Exam[]) {
+    saveExamsToStorage(next);
+    setExams(next);
+  }
 
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [filterSubject, setFilterSubject] = useState<string>("all");
@@ -212,33 +257,24 @@ export default function ExamsTab() {
       location: form.location,
     };
     if (editingExam) {
-      updateExam.mutate(exam, {
-        onSuccess: () => toast.success("Exam updated"),
-      });
+      updateExams(exams.map((e) => (e.id === exam.id ? exam : e)));
+      toast.success("Exam updated");
     } else {
-      createExam.mutate(exam, {
-        onSuccess: () => toast.success("Exam added"),
-      });
+      updateExams([...exams, exam]);
+      toast.success("Exam added");
     }
     setShowDialog(false);
   }
 
   function handleToggleComplete(exam: Exam) {
-    updateExam.mutate(
-      { ...exam, completed: !exam.completed },
-      {
-        onSuccess: () =>
-          toast.success(
-            exam.completed ? "Marked incomplete" : "Marked complete",
-          ),
-      },
-    );
+    const updated = { ...exam, completed: !exam.completed };
+    updateExams(exams.map((e) => (e.id === exam.id ? updated : e)));
+    toast.success(exam.completed ? "Marked incomplete" : "Marked complete");
   }
 
   function handleDelete(id: string) {
-    deleteExam.mutate(id, {
-      onSuccess: () => toast.success("Exam deleted"),
-    });
+    updateExams(exams.filter((e) => e.id !== id));
+    toast.success("Exam deleted");
     setDeleteId(null);
   }
 
@@ -258,16 +294,6 @@ export default function ExamsTab() {
     },
     [exams, calendarYear, calendarMonth],
   );
-
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-4">
-        {["sk-e1", "sk-e2", "sk-e3"].map((k) => (
-          <Skeleton key={k} className="h-32 w-full rounded-xl" />
-        ))}
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">

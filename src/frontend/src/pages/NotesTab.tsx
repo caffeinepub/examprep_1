@@ -27,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ChevronRight,
@@ -47,7 +46,6 @@ import {
   Search,
   Star,
   StarOff,
-  Tag,
   Trash2,
   Upload,
   X,
@@ -56,18 +54,86 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ExternalBlob } from "../backend";
-import {
-  useCreateFolder,
-  useCreateNote,
-  useDeleteFolder,
-  useDeleteNote,
-  useFolders,
-  useNotes,
-  useUpdateFolder,
-  useUpdateNote,
-} from "../hooks/useQueries";
+import { getSeedFolders, getSeedNotes } from "../seedData";
 import type { Folder as FolderType, Note } from "../types";
 
+// ── localStorage helpers ──────────────────────────────────────
+const LS_NOTES_KEY = "notes_local";
+const LS_FOLDERS_KEY = "folders_local";
+
+const BIGINT_KEYS = new Set(["createdAt"]);
+
+function bigIntReviver(key: string, value: unknown): unknown {
+  if (typeof value === "string" && /^\d+n$/.test(value)) {
+    return BigInt(value.slice(0, -1));
+  }
+  if (
+    BIGINT_KEYS.has(key) &&
+    typeof value === "string" &&
+    /^\d+$/.test(value)
+  ) {
+    return BigInt(value);
+  }
+  return value;
+}
+
+function bigIntReplacer(_key: string, value: unknown): unknown {
+  if (typeof value === "bigint") return `${value.toString()}n`;
+  return value;
+}
+
+function loadNotes(): Note[] {
+  try {
+    const raw = localStorage.getItem(LS_NOTES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw, bigIntReviver) as Note[];
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    try {
+      localStorage.removeItem(LS_NOTES_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+  const seed = getSeedNotes();
+  saveNotesToStorage(seed);
+  return seed;
+}
+
+function saveNotesToStorage(notes: Note[]) {
+  // blob is not serializable — strip it before saving
+  const serializable = notes.map(({ blob: _blob, ...rest }) => rest);
+  localStorage.setItem(
+    LS_NOTES_KEY,
+    JSON.stringify(serializable, bigIntReplacer),
+  );
+}
+
+function loadFolders(): FolderType[] {
+  try {
+    const raw = localStorage.getItem(LS_FOLDERS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as FolderType[];
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    try {
+      localStorage.removeItem(LS_FOLDERS_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+  const seed = getSeedFolders();
+  saveFoldersToStorage(seed);
+  return seed;
+}
+
+function saveFoldersToStorage(folders: FolderType[]) {
+  localStorage.setItem(LS_FOLDERS_KEY, JSON.stringify(folders));
+}
+
+// ── helpers ────────────────────────────────────────────────────
 type VirtualFolder = "all" | "favorites" | "pinned";
 
 function FolderTree({
@@ -135,14 +201,19 @@ interface NoteFormData {
 }
 
 export default function NotesTab() {
-  const { data: notes = [], isLoading: notesLoading } = useNotes();
-  const { data: folders = [], isLoading: foldersLoading } = useFolders();
-  const createNote = useCreateNote();
-  const updateNote = useUpdateNote();
-  const deleteNote = useDeleteNote();
-  const createFolder = useCreateFolder();
-  const updateFolder = useUpdateFolder();
-  const deleteFolder = useDeleteFolder();
+  // Single source of truth: plain state, persisted synchronously to localStorage
+  const [notes, setNotes] = useState<Note[]>(() => loadNotes());
+  const [folders, setFolders] = useState<FolderType[]>(() => loadFolders());
+
+  function updateNotes(next: Note[]) {
+    saveNotesToStorage(next);
+    setNotes(next);
+  }
+
+  function updateFolders(next: FolderType[]) {
+    saveFoldersToStorage(next);
+    setFolders(next);
+  }
 
   const [selectedFolder, setSelectedFolder] = useState<string | VirtualFolder>(
     "all",
@@ -176,8 +247,6 @@ export default function NotesTab() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingBlob, setPendingBlob] = useState<ExternalBlob | null>(null);
-
-  const isLoading = notesLoading || foldersLoading;
 
   // Filter notes
   const visibleNotes = useMemo(() => {
@@ -242,7 +311,7 @@ export default function NotesTab() {
     toast.success(`File "${file.name}" ready to attach`);
   }
 
-  async function saveNote() {
+  function saveNote() {
     if (!form.title.trim()) {
       toast.error("Title is required");
       return;
@@ -266,40 +335,32 @@ export default function NotesTab() {
     };
 
     if (noteDialog.editing) {
-      updateNote.mutate(note, {
-        onSuccess: () => toast.success("Note updated"),
-      });
+      updateNotes(notes.map((n) => (n.id === note.id ? note : n)));
+      toast.success("Note updated");
     } else {
-      createNote.mutate(note, {
-        onSuccess: () => toast.success("Note created"),
-      });
+      updateNotes([...notes, note]);
+      toast.success("Note created");
     }
     setNoteDialog({ open: false });
   }
 
   function togglePin(note: Note) {
-    updateNote.mutate(
-      { ...note, pinned: !note.pinned },
-      {
-        onSuccess: () => toast.success(note.pinned ? "Unpinned" : "Pinned"),
-      },
-    );
+    const updated = { ...note, pinned: !note.pinned };
+    updateNotes(notes.map((n) => (n.id === note.id ? updated : n)));
+    toast.success(note.pinned ? "Unpinned" : "Pinned");
   }
 
   function toggleFavorite(note: Note) {
-    updateNote.mutate(
-      { ...note, favorite: !note.favorite },
-      {
-        onSuccess: () =>
-          toast.success(
-            note.favorite ? "Removed from favorites" : "Added to favorites",
-          ),
-      },
+    const updated = { ...note, favorite: !note.favorite };
+    updateNotes(notes.map((n) => (n.id === note.id ? updated : n)));
+    toast.success(
+      note.favorite ? "Removed from favorites" : "Added to favorites",
     );
   }
 
   function handleDeleteNote(id: string) {
-    deleteNote.mutate(id, { onSuccess: () => toast.success("Note deleted") });
+    updateNotes(notes.filter((n) => n.id !== id));
+    toast.success("Note deleted");
     setDeleteNoteId(null);
   }
 
@@ -324,13 +385,11 @@ export default function NotesTab() {
       parentId: folderParentId !== "none" ? folderParentId : undefined,
     };
     if (folderDialog.editing) {
-      updateFolder.mutate(folder, {
-        onSuccess: () => toast.success("Folder renamed"),
-      });
+      updateFolders(folders.map((f) => (f.id === folder.id ? folder : f)));
+      toast.success("Folder renamed");
     } else {
-      createFolder.mutate(folder, {
-        onSuccess: () => toast.success("Folder created"),
-      });
+      updateFolders([...folders, folder]);
+      toast.success("Folder created");
     }
     setFolderDialog({ open: false });
   }
@@ -343,40 +402,24 @@ export default function NotesTab() {
       setDeleteFolderId(null);
       return;
     }
-    deleteFolder.mutate(id, {
-      onSuccess: () => toast.success("Folder deleted"),
-    });
+    updateFolders(folders.filter((f) => f.id !== id));
+    toast.success("Folder deleted");
     setDeleteFolderId(null);
   }
 
   function handleMoveNote() {
     if (!moveNoteDialog || !moveFolderId) return;
-    updateNote.mutate(
-      { ...moveNoteDialog, folderId: moveFolderId },
-      { onSuccess: () => toast.success("Note moved") },
+    updateNotes(
+      notes.map((n) =>
+        n.id === moveNoteDialog.id ? { ...n, folderId: moveFolderId } : n,
+      ),
     );
+    toast.success("Note moved");
     setMoveNoteDialog(null);
   }
 
   function getFolderName(id: string): string {
     return folders.find((f) => f.id === id)?.name ?? "Unknown";
-  }
-
-  if (isLoading) {
-    return (
-      <div className="h-[calc(100vh-120px)] flex gap-4 p-4">
-        <div className="w-56 space-y-2">
-          {["sk-n1", "sk-n2", "sk-n3", "sk-n4", "sk-n5"].map((k) => (
-            <Skeleton key={k} className="h-8 rounded-lg" />
-          ))}
-        </div>
-        <div className="flex-1 grid grid-cols-3 gap-3 content-start">
-          {["sk-g1", "sk-g2", "sk-g3", "sk-g4", "sk-g5", "sk-g6"].map((k) => (
-            <Skeleton key={k} className="h-40 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
   }
 
   return (

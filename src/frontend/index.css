@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/assets/fonts/BricolageGrotesque[opsz,wdth,wght].woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("/assets/fonts/Satoshi-Variable.woff2") format("woff2");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+
+    /* Dark academic palette */
+    --background: 0.16 0.008 240;
+    --foreground: 0.92 0.01 80;
+    --card: 0.19 0.01 240;
+    --card-foreground: 0.92 0.01 80;
+    --popover: 0.22 0.012 240;
+    --popover-foreground: 0.92 0.01 80;
+
+    /* Warm amber primary */
+    --primary: 0.72 0.15 68;
+    --primary-foreground: 0.12 0.008 240;
+
+    /* Teal secondary */
+    --secondary: 0.28 0.015 240;
+    --secondary-foreground: 0.85 0.01 80;
+
+    --muted: 0.25 0.012 240;
+    --muted-foreground: 0.62 0.015 240;
+
+    /* Teal accent */
+    --accent: 0.65 0.12 185;
+    --accent-foreground: 0.12 0.008 240;
+
+    --destructive: 0.62 0.22 25;
+    --destructive-foreground: 0.98 0 0;
+
+    --border: 0.28 0.015 240;
+    --input: 0.26 0.012 240;
+    --ring: 0.72 0.15 68;
+
+    /* Success green */
+    --success: 0.65 0.15 145;
+    --success-foreground: 0.12 0.008 240;
+
+    /* Warning */
+    --warning: 0.78 0.16 55;
+    --warning-foreground: 0.12 0.008 240;
+
+    --chart-1: 0.72 0.15 68;
+    --chart-2: 0.65 0.12 185;
+    --chart-3: 0.65 0.15 145;
+    --chart-4: 0.62 0.22 25;
+    --chart-5: 0.68 0.13 280;
+
+    --sidebar: 0.17 0.009 240;
+    --sidebar-foreground: 0.92 0.01 80;
+    --sidebar-primary: 0.72 0.15 68;
+    --sidebar-primary-foreground: 0.12 0.008 240;
+    --sidebar-accent: 0.22 0.012 240;
+    --sidebar-accent-foreground: 0.85 0.01 80;
+    --sidebar-border: 0.28 0.015 240;
+    --sidebar-ring: 0.72 0.15 68;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Satoshi", ui-sans-serif, system-ui, sans-serif;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% -20%, oklch(0.72 0.15 68 / 0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, oklch(0.65 0.12 185 / 0.04) 0%, transparent 60%);
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, oklch(0.82 0.16 68), oklch(0.75 0.14 55));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .card-glow {
+    box-shadow:
+      0 1px 2px oklch(0 0 0 / 0.3),
+      0 0 0 1px oklch(0.72 0.15 68 / 0.06),
+      inset 0 1px 0 oklch(1 0 0 / 0.04);
+  }
+
+  .card-glow-accent {
+    box-shadow:
+      0 1px 2px oklch(0 0 0 / 0.3),
+      0 0 0 1px oklch(0.65 0.12 185 / 0.12),
+      inset 0 1px 0 oklch(1 0 0 / 0.04);
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.35 0.015 240) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: oklch(0.35 0.015 240);
+    border-radius: 2px;
+  }
+}

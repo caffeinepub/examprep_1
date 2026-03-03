@@ -40,11 +40,19 @@ export interface Folder {
   parentId?: string;
 }
 
+export interface NoteAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  dataUrl: string; // base64 data URL stored in localStorage
+}
+
 export interface Note {
   id: string;
   title: string;
   content: string;
   blob?: ExternalBlob;
+  attachments?: NoteAttachment[];
   createdAt: bigint;
   tags: string[];
   pinned: boolean;
